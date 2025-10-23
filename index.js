@@ -80,7 +80,26 @@ console.log(drive.core)
 console.log()
 console.log('Swarming until you exit...')
 
+let timeout = setTimeout(teardown, 15_000)
+const blobs = await drive.getBlobs()
+
+drive.core.on('upload', function () {
+  clearTimeout(timeout)
+  timeout = setTimeout(teardown, 15_000)
+})
+
+blobs.core.on('upload', function () {
+  clearTimeout(timeout)
+  timeout = setTimeout(teardown, 15_000)
+})
+
 function print (data) {
   n++
   console.log(data.op === 'add' ? '+' : data.op === 'remove' ? '-' : '~', data.key, [data.bytesAdded, -data.bytesRemoved])
+}
+
+async function teardown () {
+  console.log('Shutting down due to inactivity...')
+  await swarm.destroy()
+  await drive.drive()
 }
