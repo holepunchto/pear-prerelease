@@ -1,0 +1,22 @@
+{
+  "name": "pear-prerelease",
+  "version": "0.0.0",
+  "description": "Proper prerelease flows with pear",
+  "main": "index.js",
+  "dependencies": {
+    "corestore": "^7.5.0",
+    "hypercore-id-encoding": "^1.3.0",
+    "hyperdrive": "^13.0.2",
+    "hyperswarm": "^4.14.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/holepunchto/pear-prerelease.git"
+  },
+  "author": "Holepunch Inc.",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/holepunchto/pear-prerelease/issues"
+  },
+  "homepage": "https://github.com/holepunchto/pear-prerelease"
+}
