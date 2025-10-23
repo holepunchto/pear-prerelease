@@ -3,6 +3,9 @@
   "version": "0.0.0",
   "description": "Proper prerelease flows with pear",
   "main": "index.js",
+  "bin": {
+    "pear-prerelease": "./index.js"
+  },
   "dependencies": {
     "corestore": "^7.5.0",
     "hypercore-id-encoding": "^1.3.0",
