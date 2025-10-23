@@ -101,5 +101,5 @@ function print (data) {
 async function teardown () {
   console.log('Shutting down due to inactivity...')
   await swarm.destroy()
-  await drive.drive()
+  await drive.close()
 }
