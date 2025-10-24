@@ -130,6 +130,11 @@ for (const k of keys) {
   }
 }
 
+if (await stage.db.get('release')) {
+  console.log('Dropping release from target...')
+  await stage.db.del('release')
+}
+
 console.log('Done!')
 console.log(drive.core)
 console.log()
