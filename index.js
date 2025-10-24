@@ -119,14 +119,14 @@ for (const k of keys) {
   }
 
   if (!from && to) {
-    console.log('Dropping pear setting', key)
+    console.log('Dropping pear setting', k)
     await drive.db.del(k)
     continue
   }
 
   if ((from && !to) || (JSON.stringify(from.value) !== JSON.stringify(to.value))) {
-    console.log('Updating pear setting', key)
-    await drive.db.put(key, from.value)
+    console.log('Updating pear setting', k)
+    await drive.db.put(k, from.value)
   }
 }
 
