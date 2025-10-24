@@ -112,7 +112,7 @@ const keys = ['metadata', 'channel', 'platformVersion', 'warmup']
 
 for (const k of keys) {
   const from = await co.db.get(k)
-  const to = await stage.db.get(k)
+  const to = await drive.db.get(k)
 
   if (!from && !to) {
     continue
@@ -120,19 +120,19 @@ for (const k of keys) {
 
   if (!from && to) {
     console.log('Dropping pear setting', key)
-    await stage.db.del(k)
+    await drive.db.del(k)
     continue
   }
 
   if ((from && !to) || (JSON.stringify(from.value) !== JSON.stringify(to.value))) {
     console.log('Updating pear setting', key)
-    await stage.db.put(key, from.value)
+    await drive.db.put(key, from.value)
   }
 }
 
-if (await stage.db.get('release')) {
+if (await drive.db.get('release')) {
   console.log('Dropping release from target...')
-  await stage.db.del('release')
+  await drive.db.del('release')
 }
 
 console.log('Done!')
