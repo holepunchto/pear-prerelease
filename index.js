@@ -19,8 +19,8 @@ const swarm = new Hyperswarm({
 const drive = new Hyperdrive(store.namespace('release'), { compat: false })
 await drive.ready()
 
-const prod = new Hyperdrive(store.namespace('prod'), PROD_KEY)
-await prod.ready()
+const prod = PROD_KEY ? new Hyperdrive(store.namespace('prod'), PROD_KEY) : null
+if (prod) await prod.ready()
 
 const stage = new Hyperdrive(store.session(), STAGE_KEY)
 await stage.ready()
@@ -35,31 +35,33 @@ swarm.join(stage.discoveryKey, {
   server: false
 })
 
-// hydrate prod target
-if (prod.core.length === 0) await new Promise(resolve => prod.core.once('append', () => resolve()))
+if (prod) {
+  // hydrate prod target
+  if (prod.core.length === 0) await new Promise(resolve => prod.core.once('append', () => resolve()))
 
-prod.core.download()
+  prod.core.download()
 
-console.log('Copying in existing metadata data, might take a bit...')
-while (drive.core.length < prod.core.length) {
-  await drive.core.append(await prod.core.get(drive.core.length))
-  console.log('Copied blocks', drive.core.length, '/', prod.core.length)
+  console.log('Copying in existing metadata data, might take a bit...')
+  while (drive.core.length < prod.core.length) {
+    await drive.core.append(await prod.core.get(drive.core.length))
+    console.log('Copied blocks', drive.core.length, '/', prod.core.length)
+  }
+  console.log('Done!')
+  console.log()
+
+  await drive.getBlobs()
+  await prod.getBlobs()
+
+  prod.blobs.core.download()
+
+  console.log('Copying in existing blob data, might take a bit...')
+  while (drive.blobs.core.length < prod.blobs.core.length) {
+    await drive.blobs.core.append(await prod.blobs.core.get(drive.blobs.core.length))
+    console.log('Copied blob blocks', drive.blobs.core.length, '/', prod.blobs.core.length)
+  }
+  console.log('Done!')
+  console.log()
 }
-console.log('Done!')
-console.log()
-
-await drive.getBlobs()
-await prod.getBlobs()
-
-prod.blobs.core.download()
-
-console.log('Copying in existing blob data, might take a bit...')
-while (drive.blobs.core.length < prod.blobs.core.length) {
-  await drive.blobs.core.append(await prod.blobs.core.get(drive.blobs.core.length))
-  console.log('Copied blob blocks', drive.blobs.core.length, '/', prod.blobs.core.length)
-}
-console.log('Done!')
-console.log()
 
 const co = stage.checkout(STAGE_CHECKOUT)
 await co.ready()
