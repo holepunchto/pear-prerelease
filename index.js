@@ -110,7 +110,7 @@ if (!n) console.log('(Empty)')
 console.log()
 
 // skipping release as thats non sensical
-const keys = ['metadata', 'channel', 'platformVersion', 'warmup']
+const keys = ['manifest', 'metadata', 'channel', 'platformVersion', 'warmup']
 
 for (const k of keys) {
   const from = await co.db.get(k)
