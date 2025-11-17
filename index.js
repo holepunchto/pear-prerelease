@@ -4,164 +4,189 @@ import Hyperdrive from 'hyperdrive'
 import Corestore from 'corestore'
 import Hyperswarm from 'hyperswarm'
 import id from 'hypercore-id-encoding'
+import pearLink from 'pear-link'
+import { flag, command } from 'paparam'
 
-const DRY_RUN = process.argv.includes('--dry-run')
-const STAGE_KEY = process.argv[2]
-const STAGE_CHECKOUT = Number(process.argv[3])
+const app = command('prerelease',
+  flag('--dry-run'),
+  flag('--from,-f <link>'),
+  flag('--to,-t <link>'),
+  flag('--production,-p <link>'),
+  flag('--touch'),
+  flag('--storage,-s <storage>')
+).parse()
 
-const PROD_KEY = process.argv[4]
+const exit = global.Bare ? Bare.exit.bind(Bare) : process.exit.bind(process)
 
-const store = new Corestore('./corestore')
-const swarm = new Hyperswarm({
-  keyPair: await store.createKeyPair('hyperswarm')
-})
+const DRY_RUN = app.flags.dryRun
+const FROM = app.flags.from ? pearLink.parse(app.flags.from) : null
+const TO = app.flags.to ? pearLink.parse(app.flags.to) : null
+const PROD = app.flags.production ? pearLink.parse(app.flags.production) : null
 
-const drive = new Hyperdrive(store.namespace('release'), { compat: false })
-await drive.ready()
+const store = new Corestore(app.flags.storage || './corestore')
 
-const prod = PROD_KEY ? new Hyperdrive(store.namespace('prod'), PROD_KEY) : null
-if (prod) await prod.ready()
+if (app.flags.touch) {
+  const core = store.get({ name: Math.random() + '.' + Date.now() })
+  await core.ready()
+  console.log('pear://' + core.id)
+  await core.close()
+}
 
-const stage = new Hyperdrive(store.session(), STAGE_KEY)
-await stage.ready()
+if (FROM && TO) {
+  const swarm = new Hyperswarm({
+    keyPair: await store.createKeyPair('hyperswarm')
+  })
 
-swarm.on('connection', c => store.replicate(c))
-swarm.join(drive.discoveryKey, {
-  client: true,
-  server: true
-})
-swarm.join(stage.discoveryKey, {
-  client: true,
-  server: false
-})
+  swarm.on('connection', c => store.replicate(c))
 
-if (prod) {
-  // hydrate prod target
-  if (prod.core.length === 0) await new Promise(resolve => prod.core.once('append', () => resolve()))
+  const to = new Hyperdrive(store.namespace('release'), TO.drive.key, { compat: false })
+  await to.ready()
 
-  prod.core.download()
+  const prod = PROD ? new Hyperdrive(store.namespace('prod'), PROD.drive.key) : null
+  if (prod) await prod.ready()
 
-  console.log('Copying in existing metadata data, might take a bit...')
-  while (drive.core.length < prod.core.length) {
-    await drive.core.append(await prod.core.get(drive.core.length))
-    console.log('Copied blocks', drive.core.length, '/', prod.core.length)
+  const from = new Hyperdrive(store.session(), FROM.drive.key)
+  await from.ready()
+
+  swarm.join(to.discoveryKey, {
+    client: true,
+    server: true
+  })
+  swarm.join(from.discoveryKey, {
+    client: true,
+    server: false
+  })
+
+  if (prod) {
+    // hydrate prod target
+    if (prod.core.length === 0) {
+      await new Promise(resolve => prod.core.once('append', () => resolve()))
+    }
+
+    prod.core.download()
+
+    console.log('Copying in existing metadata data, might take a bit...')
+    while (to.core.length < prod.core.length) {
+      await to.core.append(await prod.core.get(to.core.length))
+      console.log('Copied blocks', to.core.length, '/', prod.core.length)
+    }
+    console.log('Done!')
+    console.log()
+
+    await to.getBlobs()
+    await prod.getBlobs()
+
+    prod.blobs.core.download()
+
+    console.log('Copying in existing blob data, might take a bit...')
+    while (to.blobs.core.length < prod.blobs.core.length) {
+      await to.blobs.core.append(await prod.blobs.core.get(to.blobs.core.length))
+      console.log('Copied blob blocks', to.blobs.core.length, '/', prod.blobs.core.length)
+    }
+    console.log('Done!')
+    console.log()
   }
+
+  const co = from.checkout(FROM.drive.length || from.core.length)
+  await co.ready()
+
+  let n = 0
+
+  console.log('Checking diff')
+  for await (const data of co.mirror(to, { dryRun: true, batch: true })) print(data)
+  if (!n) console.log('(Empty)')
   console.log('Done!')
   console.log()
 
-  await drive.getBlobs()
-  await prod.getBlobs()
-
-  prod.blobs.core.download()
-
-  console.log('Copying in existing blob data, might take a bit...')
-  while (drive.blobs.core.length < prod.blobs.core.length) {
-    await drive.blobs.core.append(await prod.blobs.core.get(drive.blobs.core.length))
-    console.log('Copied blob blocks', drive.blobs.core.length, '/', prod.blobs.core.length)
-  }
-  console.log('Done!')
+  const pkg = JSON.parse(await co.get('/package.json'))
+  console.log('Total changes', n)
+  console.log('Package version:', pkg.version)
   console.log()
-}
 
-const co = stage.checkout(STAGE_CHECKOUT)
-await co.ready()
+  console.log('Core:')
+  console.log(to.core.id, to.core.length)
+  console.log(id.encode(await to.core.treeHash()))
+  console.log()
+  console.log('Blobs:')
+  console.log(to.blobs.core.id, to.blobs.core.length)
+  console.log(id.encode(await to.blobs.core.treeHash()))
+  console.log()
 
-let n = 0
-
-console.log('Checking diff')
-for await (const data of co.mirror(drive, { dryRun: true, batch: true })) print(data)
-if (!n) console.log('(Empty)')
-console.log('Done!')
-console.log()
-
-const pkg = JSON.parse(await co.get('/package.json'))
-console.log('Total changes', n)
-console.log('Package version:', pkg.version)
-console.log()
-
-console.log('Core:')
-console.log(drive.core.id, drive.core.length)
-console.log(id.encode(await drive.core.treeHash()))
-console.log()
-console.log('Blobs:')
-console.log(drive.blobs.core.id, drive.blobs.core.length)
-console.log(id.encode(await drive.blobs.core.treeHash()))
-console.log()
-
-if (DRY_RUN) {
-  console.log('Exiting due to dry run...')
-  await swarm.destroy()
-  process.exit(0)
-}
-
-if (!/^\d+\.\d+\.\d+$/.test(pkg.version)) {
-  console.log('Version does not look like a release version to for dry-running...')
-  await swarm.destroy()
-  process.exit(0)
-}
-
-console.log('NOT A DRY RUN! Waiting 10s in case you wanna bail...')
-await new Promise(resolve => setTimeout(resolve, 10_000))
-console.log('OK THEN! Staging...')
-
-console.log()
-for await (const data of co.mirror(drive, { batch: true })) print(data)
-if (!n) console.log('(Empty)')
-console.log()
-
-// skipping release as thats non sensical
-const keys = ['manifest', 'metadata', 'channel', 'platformVersion', 'warmup']
-
-for (const k of keys) {
-  const from = await co.db.get(k)
-  const to = await drive.db.get(k)
-
-  if (!from && !to) {
-    continue
+  if (DRY_RUN) {
+    console.log('Exiting due to dry run...')
+    await swarm.destroy()
+    exit(0)
   }
 
-  if (!from && to) {
-    console.log('Dropping pear setting', k)
-    await drive.db.del(k)
-    continue
+  if (!/^\d+\.\d+\.\d+$/.test(pkg.version)) {
+    console.log('Version does not look like a release version to for dry-running...')
+    await swarm.destroy()
+    exit(0)
   }
 
-  if ((from && !to) || (JSON.stringify(from.value) !== JSON.stringify(to.value))) {
-    console.log('Updating pear setting', k)
-    await drive.db.put(k, from.value)
+  console.log('NOT A DRY RUN! Waiting 10s in case you wanna bail...')
+  await new Promise(resolve => setTimeout(resolve, 10_000))
+  console.log('OK THEN! Staging...')
+
+  console.log()
+  for await (const data of co.mirror(to, { batch: true })) print(data)
+  if (!n) console.log('(Empty)')
+  console.log()
+
+  // skipping release as thats non sensical
+  const keys = ['manifest', 'metadata', 'channel', 'platformVersion', 'warmup']
+
+  for (const k of keys) {
+    const src = await co.db.get(k)
+    const dst = await to.db.get(k)
+
+    if (!src && !dst) {
+      continue
+    }
+
+    if (!src && dst) {
+      console.log('Dropping pear setting', k)
+      await dst.db.del(k)
+      continue
+    }
+
+    if ((src && !dst) || (JSON.stringify(src.value) !== JSON.stringify(dst.value))) {
+      console.log('Updating pear setting', k)
+      await to.db.put(k, src.value)
+    }
   }
-}
 
-if (await drive.db.get('release')) {
-  console.log('Dropping release from target...')
-  await drive.db.del('release')
-}
+  if (await to.db.get('release')) {
+    console.log('Dropping release from target...')
+    await to.db.del('release')
+  }
 
-console.log('Done!')
-console.log(drive.core)
-console.log()
-console.log('Swarming until you exit...')
+  console.log('Done!')
+  console.log(to.core)
+  console.log()
+  console.log('Swarming until you exit...')
 
-let timeout = setTimeout(teardown, 15_000)
-const blobs = await drive.getBlobs()
+  let timeout = setTimeout(teardown, 15_000)
+  const blobs = await to.getBlobs()
 
-drive.core.on('upload', function () {
-  clearTimeout(timeout)
-  timeout = setTimeout(teardown, 15_000)
-})
+  to.core.on('upload', function () {
+    clearTimeout(timeout)
+    timeout = setTimeout(teardown, 15_000)
+  })
 
-blobs.core.on('upload', function () {
-  clearTimeout(timeout)
-  timeout = setTimeout(teardown, 15_000)
-})
+  blobs.core.on('upload', function () {
+    clearTimeout(timeout)
+    timeout = setTimeout(teardown, 15_000)
+  })
 
-function print (data) {
-  n++
-  console.log(data.op === 'add' ? '+' : data.op === 'remove' ? '-' : '~', data.key, [data.bytesAdded, -data.bytesRemoved])
-}
+  function print (data) {
+    n++
+    console.log(data.op === 'add' ? '+' : data.op === 'remove' ? '-' : '~', data.key, [data.bytesAdded, -data.bytesRemoved])
+  }
 
-async function teardown () {
-  console.log('Shutting down due to inactivity...')
-  await swarm.destroy()
-  await drive.close()
+  async function teardown () {
+    console.log('Shutting down due to inactivity...')
+    await swarm.destroy()
+    await to.close()
+  }
 }
