@@ -7,7 +7,7 @@ import id from 'hypercore-id-encoding'
 import pearLink from 'pear-link'
 import { flag, command } from 'paparam'
 
-const app = command('prerelease',
+const app = command('pear-prerelease',
   flag('--dry-run'),
   flag('--from,-f <link>'),
   flag('--to,-t <link>'),
@@ -17,6 +17,7 @@ const app = command('prerelease',
 ).parse()
 
 const exit = global.Bare ? Bare.exit.bind(Bare) : process.exit.bind(process)
+if (!app) exit(0)
 
 const DRY_RUN = app.flags.dryRun
 const FROM = app.flags.from ? pearLink.parse(app.flags.from) : null
