@@ -9,17 +9,19 @@ import { flag, command } from 'paparam'
 
 const app = command('pear-prerelease',
   flag('--dry-run'),
-  flag('--from,-f <link>'),
-  flag('--to,-t <link>'),
-  flag('--production,-p <link>'),
+  flag('--from|-f <link>'),
+  flag('--to|-t <link>'),
+  flag('--production|-p <link>'),
+  flag('--bootstrap'),
   flag('--touch'),
-  flag('--storage,-s <storage>')
+  flag('--storage|-s <storage>')
 ).parse()
 
 const exit = global.Bare ? Bare.exit.bind(Bare) : process.exit.bind(process)
 if (!app) exit(0)
 
 const DRY_RUN = app.flags.dryRun
+const BOOTSTRAP = app.flags.bootstrap
 const FROM = app.flags.from ? pearLink.parse(app.flags.from) : null
 const TO = app.flags.to ? pearLink.parse(app.flags.to) : null
 const PROD = app.flags.production ? pearLink.parse(app.flags.production) : null
@@ -33,7 +35,7 @@ if (app.flags.touch) {
   await core.close()
 }
 
-if (FROM && TO) {
+if (FROM && TO && PROD) {
   const swarm = new Hyperswarm({
     keyPair: await store.createKeyPair('hyperswarm')
   })
@@ -43,8 +45,8 @@ if (FROM && TO) {
   const to = new Hyperdrive(store.namespace('release'), TO.drive.key, { compat: false })
   await to.ready()
 
-  const prod = PROD ? new Hyperdrive(store.namespace('prod'), PROD.drive.key) : null
-  if (prod) await prod.ready()
+  const prod = new Hyperdrive(store.namespace('prod'), PROD.drive.key)
+  await prod.ready()
 
   const from = new Hyperdrive(store.session(), FROM.drive.key)
   await from.ready()
@@ -58,35 +60,33 @@ if (FROM && TO) {
     server: false
   })
 
-  if (prod) {
-    // hydrate prod target
-    if (prod.core.length === 0) {
-      await new Promise(resolve => prod.core.once('append', () => resolve()))
-    }
-
-    prod.core.download()
-
-    console.log('Copying in existing metadata data, might take a bit...')
-    while (to.core.length < prod.core.length) {
-      await to.core.append(await prod.core.get(to.core.length))
-      console.log('Copied blocks', to.core.length, '/', prod.core.length)
-    }
-    console.log('Done!')
-    console.log()
-
-    await to.getBlobs()
-    await prod.getBlobs()
-
-    prod.blobs.core.download()
-
-    console.log('Copying in existing blob data, might take a bit...')
-    while (to.blobs.core.length < prod.blobs.core.length) {
-      await to.blobs.core.append(await prod.blobs.core.get(to.blobs.core.length))
-      console.log('Copied blob blocks', to.blobs.core.length, '/', prod.blobs.core.length)
-    }
-    console.log('Done!')
-    console.log()
+  // hydrate prod target
+  if (prod.core.length === 0 && !BOOTSTRAP) {
+    await new Promise(resolve => prod.core.once('append', () => resolve()))
   }
+
+  prod.core.download()
+
+  console.log('Copying in existing metadata data, might take a bit...')
+  while (to.core.length < prod.core.length) {
+    await to.core.append(await prod.core.get(to.core.length))
+    console.log('Copied blocks', to.core.length, '/', prod.core.length)
+  }
+  console.log('Done!')
+  console.log()
+
+  await to.getBlobs()
+  await prod.getBlobs()
+
+  prod.blobs.core.download()
+
+  console.log('Copying in existing blob data, might take a bit...')
+  while (to.blobs.core.length < prod.blobs.core.length) {
+    await to.blobs.core.append(await prod.blobs.core.get(to.blobs.core.length))
+    console.log('Copied blob blocks', to.blobs.core.length, '/', prod.blobs.core.length)
+  }
+  console.log('Done!')
+  console.log()
 
   const co = from.checkout(FROM.drive.length || from.core.length)
   await co.ready()
