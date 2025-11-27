@@ -93,7 +93,7 @@ if (FROM && TO && PROD) {
 
   let n = 0
 
-  console.log('Checking diff', co.core.id, co.core.length)
+  console.log('Checking diff from', co.core.id, co.core.length)
   for await (const data of co.mirror(to, { dryRun: true, batch: true })) print(data)
   if (!n) console.log('(Empty)')
   console.log('Done!')
