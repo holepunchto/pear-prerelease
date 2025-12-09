@@ -76,17 +76,18 @@ if (FROM && TO && PROD) {
   console.log()
 
   await to.getBlobs()
-  await prod.getBlobs()
+  if (prod.core.length > 0) {
+    await prod.getBlobs()
+    prod.blobs.core.download()
 
-  prod.blobs.core.download()
-
-  console.log('Copying in existing blob data, might take a bit...')
-  while (to.blobs.core.length < prod.blobs.core.length) {
-    await to.blobs.core.append(await prod.blobs.core.get(to.blobs.core.length))
-    console.log('Copied blob blocks', to.blobs.core.length, '/', prod.blobs.core.length)
+    console.log('Copying in existing blob data, might take a bit...')
+    while (to.blobs.core.length < prod.blobs.core.length) {
+      await to.blobs.core.append(await prod.blobs.core.get(to.blobs.core.length))
+      console.log('Copied blob blocks', to.blobs.core.length, '/', prod.blobs.core.length)
+    }
+    console.log('Done!')
+    console.log()
   }
-  console.log('Done!')
-  console.log()
 
   const co = from.checkout(FROM.drive.length || from.core.length)
   await co.ready()
