@@ -61,7 +61,7 @@ if (FROM && TO && PROD) {
   })
 
   // hydrate prod target
-  if (prod.core.length === 0 && !BOOTSTRAP) {
+  if (prod.core.length === 0 && !BOOTSTRAP && PROD.drive.length !== 0) {
     await new Promise(resolve => prod.core.once('append', () => resolve()))
   }
 
