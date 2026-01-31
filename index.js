@@ -63,6 +63,10 @@ if (FROM && TO && PROD) {
     client: true,
     server: false
   })
+  swarm.join(prod.discoveryKey, {
+    client: true,
+    server: false
+  })
 
   // hydrate prod target
   if (prod.core.length === 0 && !BOOTSTRAP && PROD.drive.length !== 0) {
