@@ -45,6 +45,10 @@ if (FROM && TO && PROD) {
   const to = new Hyperdrive(store.namespace('release'), TO.drive.key, { compat: false })
   await to.ready()
 
+  if (!to.core.writable) {
+    throw new Error('--to must be a writable drive')
+  }
+
   const prod = new Hyperdrive(store.namespace('prod'), PROD.drive.key)
   await prod.ready()
 
@@ -67,7 +71,8 @@ if (FROM && TO && PROD) {
 
   prod.core.download()
 
-  console.log('Copying in existing metadata data, might take a bit...')
+  const diff = '(' + to.core.length + '/' + prod.core.length + ')'
+  console.log('Copying in existing metadata data, might take a bit... ' + diff)
   while (to.core.length < prod.core.length) {
     await to.core.append(await prod.core.get(to.core.length))
     console.log('Copied blocks', to.core.length, '/', prod.core.length)
@@ -80,7 +85,8 @@ if (FROM && TO && PROD) {
     await prod.getBlobs()
     prod.blobs.core.download()
 
-    console.log('Copying in existing blob data, might take a bit...')
+    const diff = '(' + to.blobs.core.length + '/' + prod.blobs.core.length + ')'
+    console.log('Copying in existing blob data, might take a bit... ' + diff)
     while (to.blobs.core.length < prod.blobs.core.length) {
       await to.blobs.core.append(await prod.blobs.core.get(to.blobs.core.length))
       console.log('Copied blob blocks', to.blobs.core.length, '/', prod.blobs.core.length)
