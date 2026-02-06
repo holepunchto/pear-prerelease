@@ -158,7 +158,7 @@ if (FROM && TO && PROD) {
 
     if (!src && dst) {
       console.log('Dropping pear setting', k)
-      await dst.db.del(k)
+      await to.db.del(k)
       continue
     }
 
