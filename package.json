@@ -1,6 +1,6 @@
 {
   "name": "pear-prerelease",
-  "version": "3.2.2",
+  "version": "3.2.3",
   "description": "Proper prerelease flows with pear",
   "main": "index.js",
   "type": "module",
