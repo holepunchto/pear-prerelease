@@ -25,6 +25,7 @@ const BOOTSTRAP = app.flags.bootstrap
 const FROM = app.flags.from ? pearLink.parse(app.flags.from) : null
 const TO = app.flags.to ? pearLink.parse(app.flags.to) : null
 const PROD = app.flags.production ? pearLink.parse(app.flags.production) : null
+const SAME = app.flags.production === app.flags.from
 
 const store = new Corestore(app.flags.storage || './corestore')
 
@@ -52,7 +53,7 @@ if (FROM && TO && PROD) {
   const prod = new Hyperdrive(store.namespace('prod'), PROD.drive.key)
   await prod.ready()
 
-  const from = new Hyperdrive(store.session(), FROM.drive.key)
+  const from = SAME ? prod : new Hyperdrive(store.session(), FROM.drive.key)
   await from.ready()
 
   swarm.join(to.discoveryKey, {
